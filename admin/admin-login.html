@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UniRide Admin — Login</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body class="login-body">
+
+<div class="login-card">
+    <h1>🚌 UniRide Admin</h1>
+    <p class="subtitle">Sign in to manage buses and drivers</p>
+
+    <form id="loginForm">
+        <label>Username</label>
+        <input type="text" id="username" required autocomplete="username" />
+
+        <label>Password</label>
+        <input type="password" id="password" required autocomplete="current-password" />
+
+        <button type="submit">Log In</button>
+        <p id="errorMsg" class="error-msg"></p>
+    </form>
+
+    <p class="hint">Default: <b>admin</b> / <b>admin123</b> (change after first login)</p>
+</div>
+</body>
+</html>
