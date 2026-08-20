@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>UniRide Driver</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+    html, body { height: 100%; background: #f2f4f8; }
+
+    /* ---------- Login screen ---------- */
+    #loginScreen {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a3c6e, #2f6fb0);
+        padding: 20px;
+    }
+    .login-card {
+        background: white;
+        padding: 32px 26px;
+        border-radius: 14px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        width: 100%;
+        max-width: 360px;
+        text-align: center;
+    }
+    .login-card .icon { font-size: 42px; margin-bottom: 6px; }
+    .login-card h1 { font-size: 20px; color: #1a3c6e; margin-bottom: 4px; }
+    .login-card p.subtitle { font-size: 13px; color: #777; margin-bottom: 22px; }
+    .login-card label { display: block; text-align: left; font-size: 13px; color: #444; margin: 12px 0 4px; }
+    .login-card input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-size: 15px;
+    }
+    .login-card button {
+        width: 100%;
+        margin-top: 22px;
+        padding: 13px;
+        background: #1a3c6e;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    .login-card button:disabled { opacity: 0.6; }
+    #loginError { color: #c0392b; font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+    /* ---------- Tracking screen ---------- */
+    #trackingScreen { display: none; min-height: 100vh; }
+    #topbar {
+        background: #1a3c6e;
+        color: white;
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    #topbar h1 { font-size: 17px; }
+    #logoutBtn {
+        background: rgba(255,255,255,0.15);
+        border: none;
+        color: white;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .tracking-body { padding: 24px 20px; display: flex; flex-direction: column; align-items: center; }
+
+    .driver-card {
+        background: white;
+        border-radius: 10px;
+        padding: 16px 20px;
+        width: 100%;
+        max-width: 380px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        margin-bottom: 26px;
+    }
+    .driver-card .name { font-size: 18px; font-weight: 600; color: #222; }
+    .driver-card .bus { font-size: 13px; color: #777; margin-top: 2px; }
+
+    .status-circle {
+        width: 160px; height: 160px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 64px;
+        margin-bottom: 20px;
+        border: 3px solid #999;
+        background: #efefef;
+        transition: all 0.3s;
+    }
+    .status-circle.tracking { background: #e3f6e5; border-color: #2e7d32; }
+    .status-circle.blocked { background: #fdecea; border-color: #c0392b; }
+
+    #statusText {
+        font-size: 14px;
+        color: #333;
+        text-align: center;
+        max-width: 340px;
+        margin-bottom: 10px;
+        line-height: 1.5;
+    }
+    #coordsText, #updatesText {
+        font-size: 12px;
+        color: #888;
+        text-align: center;
+    }
+    #errorText {
+        font-size: 12px;
+        color: #c0392b;
+        text-align: center;
+        margin-top: 8px;
+        max-width: 320px;
+    }
+
+    #primaryBtn {
+        width: 100%;
+        max-width: 380px;
+        margin-top: 30px;
+        padding: 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+        background: #1a3c6e;
+        cursor: pointer;
+    }
+    #primaryBtn.stop { background: #c0392b; }
+    #primaryBtn:disabled { opacity: 0.6; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen">
+    <div class="login-card">
+        <div class="icon">🚌</div>
+        <h1>UniRide Driver</h1>
+        <p class="subtitle">Log in to start sharing your live location</p>
+
+        <label>Username</label>
+        <input type="text" id="username" autocomplete="username" />
+
+        <label>Password</label>
+        <input type="password" id="password" autocomplete="current-password" />
+
+        <button id="loginBtn">Log In</button>
+        <p id="loginError"></p>
+    </div>
+</div>
+
+<!-- ============ TRACKING SCREEN ============ -->
+<div id="trackingScreen">
+    <div id="topbar">
+        <h1>🚌 UniRide Driver</h1>
+        <button id="logoutBtn">Log Out</button>
+    </div>
+
+    <div class="tracking-body">
+        <div class="driver-card">
+            <div class="name" id="driverNameLabel"></div>
+            <div class="bus" id="busNameLabel"></div>
+        </div>
+
+        <div class="status-circle" id="statusCircle">📍</div>
+
+        <div id="statusText">Checking location access...</div>
+        <div id="coordsText"></div>
+        <div id="updatesText"></div>
+        <div id="errorText"></div>
+
+        <button id="primaryBtn" disabled>Checking...</button>
+    </div>
+</div>
+
+<script>
+// ============================================
+// CONFIGURE THIS: point to your PHP backend
+// ============================================
+const API_BASE = "http://localhost/uniride-backend"; // <-- change to your backend URL
+const UPDATE_INTERVAL_MS = 5000;
+
+// ---------- State ----------
+let driver = null;          // { driver_id, full_name, bus_name }
+let isTracking = false;
+let updateTimer = null;
+let updatesSent = 0;
+let watchDenied = false;
+
+// ---------- Elements ----------
+const loginScreen = document.getElementById('loginScreen');
+const trackingScreen = document.getElementById('trackingScreen');
+const loginBtn = document.getElementById('loginBtn');
+const loginError = document.getElementById('loginError');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+
+const driverNameLabel = document.getElementById('driverNameLabel');
+const busNameLabel = document.getElementById('busNameLabel');
+const statusCircle = document.getElementById('statusCircle');
+const statusText = document.getElementById('statusText');
+const coordsText = document.getElementById('coordsText');
+const updatesText = document.getElementById('updatesText');
+const errorText = document.getElementById('errorText');
+const primaryBtn = document.getElementById('primaryBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+
+// ---------- Auto-login if a session is already saved ----------
+window.addEventListener('load', () => {
+    const saved = localStorage.getItem('uniride_driver');
+    if (saved) {
+        driver = JSON.parse(saved);
+        showTrackingScreen();
+    }
+});
+
+// ---------- Login ----------
+loginBtn.addEventListener('click', doLogin);
+passwordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    loginError.textContent = '';
+
+    if (!username || !password) {
+        loginError.textContent = 'Enter username and password';
+        return;
+    }
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Logging in...';
+
+    try {
+        const res = await fetch(`${API_BASE}/driver_login.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+        });
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+            driver = {
+                driver_id: data.driver_id,
+                full_name: data.full_name,
+                bus_name: data.bus_name || 'Unassigned'
+            };
+            localStorage.setItem('uniride_driver', JSON.stringify(driver));
+            showTrackingScreen();
+        } else {
+            loginError.textContent = data.message || 'Login failed';
+        }
+    } catch (err) {
+        loginError.textContent = 'Could not reach server. Check your connection.';
+    } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Log In';
+    }
+}
+
+// ---------- Screen switching ----------
+function showTrackingScreen() {
+    loginScreen.style.display = 'none';
+    trackingScreen.style.display = 'block';
+    driverNameLabel.textContent = driver.full_name;
+    busNameLabel.textContent = `Bus: ${driver.bus_name}`;
+    checkLocationAccess();
+}
+
+// ---------- Location permission handling ----------
+// Browsers prompt for permission automatically the first time getCurrentPosition
+// is called - there's no separate "ask permission" step needed like in native apps.
+function checkLocationAccess() {
+    if (!('geolocation' in navigator)) {
+        setBlockedState('This browser does not support location access.');
+        return;
+    }
+
+    statusText.textContent = 'Requesting location access...';
+    primaryBtn.textContent = 'Checking...';
+    primaryBtn.disabled = true;
+
+    navigator.geolocation.getCurrentPosition(
+        () => {
+            // Permission granted, ready to track
+            watchDenied = false;
+            setReadyState();
+        },
+        (err) => {
+            if (err.code === err.PERMISSION_DENIED) {
+                setBlockedState('Location access was denied. Please allow location for this site in your browser settings, then tap Retry.');
+            } else if (err.code === err.POSITION_UNAVAILABLE) {
+                setBlockedState('Could not get a location. Make sure your device\'s GPS/Location is turned on, then tap Retry.');
+            } else {
+                setBlockedState('Location request timed out. Tap Retry.');
+            }
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
+
+function setBlockedState(message) {
+    statusCircle.className = 'status-circle blocked';
+    statusCircle.textContent = '🚫';
+    statusText.textContent = message;
+    primaryBtn.textContent = 'Retry';
+    primaryBtn.disabled = false;
+    primaryBtn.className = '';
+    primaryBtn.onclick = checkLocationAccess;
+}
+
+function setReadyState() {
+    statusCircle.className = 'status-circle';
+    statusCircle.textContent = '📍';
+    statusText.textContent = 'Ready. Tap "Start Trip" to begin sharing your location.';
+    primaryBtn.textContent = 'Start Trip';
+    primaryBtn.disabled = false;
+    primaryBtn.className = '';
+    primaryBtn.onclick = startTracking;
+}
+
+// ---------- Tracking ----------
+function startTracking() {
+    isTracking = true;
+    errorText.textContent = '';
+    statusCircle.className = 'status-circle tracking';
+    statusCircle.textContent = '🟢';
+    statusText.textContent = 'Sharing live location...';
+    primaryBtn.textContent = 'Stop Trip';
+    primaryBtn.className = 'stop';
+    primaryBtn.onclick = stopTracking;
+
+    sendLocationOnce(); // send immediately, then on an interval
+    updateTimer = setInterval(sendLocationOnce, UPDATE_INTERVAL_MS);
+}
+
+function sendLocationOnce() {
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            coordsText.textContent = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+
+            try {
+                const res = await fetch(`${API_BASE}/update_location.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `driver_id=${driver.driver_id}&lat=${lat}&lng=${lng}`
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    updatesSent++;
+                    updatesText.textContent = `Updates sent: ${updatesSent}`;
+                    errorText.textContent = '';
+                } else {
+                    errorText.textContent = 'Server did not accept the last update';
+                }
+            } catch (err) {
+                errorText.textContent = 'Could not reach server for the last update';
+            }
+        },
+        (err) => {
+            errorText.textContent = 'Could not get GPS location — is device location still on?';
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
+
+function stopTracking() {
+    isTracking = false;
+    clearInterval(updateTimer);
+    updateTimer = null;
+
+    statusCircle.className = 'status-circle';
+    statusCircle.textContent = '📍';
+    statusText.textContent = 'Trip ended. Tap "Start Trip" to resume.';
+    primaryBtn.textContent = 'Start Trip';
+    primaryBtn.className = '';
+    primaryBtn.onclick = startTracking;
+
+    fetch(`${API_BASE}/stop_tracking.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `driver_id=${driver.driver_id}`
+    }).catch(() => { /* best effort */ });
+}
+
+// ---------- Logout ----------
+logoutBtn.addEventListener('click', () => {
+    if (isTracking) stopTracking();
+    localStorage.removeItem('uniride_driver');
+    driver = null;
+    updatesSent = 0;
+    usernameInput.value = '';
+    passwordInput.value = '';
+    trackingScreen.style.display = 'none';
+    loginScreen.style.display = 'flex';
+});
+</script>
+
+</body>
+</html>

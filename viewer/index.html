@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UniRide — Live Bus Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; }
+
+    #topbar {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        height: 56px;
+        background: #1a3c6e;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        z-index: 1000;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    #topbar h1 { font-size: 18px; font-weight: 600; }
+    #status-badge {
+        font-size: 13px;
+        background: rgba(255,255,255,0.15);
+        padding: 5px 12px;
+        border-radius: 14px;
+    }
+    #status-badge.live::before {
+        content: "●";
+        color: #4caf50;
+        margin-right: 6px;
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    #map { position: absolute; top: 56px; bottom: 0; left: 0; right: 0; }
+
+    #empty-msg {
+        position: fixed;
+        top: 80px; left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        padding: 10px 18px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        font-size: 14px;
+        color: #444;
+        z-index: 999;
+        display: none;
+    }
+
+    .bus-popup { font-size: 14px; line-height: 1.5; }
+    .bus-popup b { color: #1a3c6e; }
+
+    .bus-icon {
+        background: #1a3c6e;
+        color: white;
+        border-radius: 50%;
+        width: 34px; height: 34px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px;
+        border: 3px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+    <h1>🚌 UniRide — Live Bus Tracker</h1>
+    <span id="status-badge" class="live">Live</span>
+</div>
+
+<div id="map"></div>
+<div id="empty-msg">No buses are currently active.</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // ============================================
+    // CONFIGURE THIS: point to your PHP backend
+    // ============================================
+    const API_BASE = "http://localhost/uniride-backend"; // <-- change to your backend URL
+    const REFRESH_MS = 5000;
+
+    // Default view: Dhaka, Bangladesh
+    const map = L.map('map').setView([23.8103, 90.4125], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+    }).addTo(map);
+
+    // const busIcon = L.divIcon({
+    //     className: '',
+    //     html: '<div class="bus-icon">🚌</div>',
+    //     iconSize: [34, 34],
+    //     iconAnchor: [17, 17],
+    //     popupAnchor: [0, -17]
+    // });
+
+    // let markers = {};      // driver_id -> L.marker
+    // let hasFittedOnce = false;
+
+    // function timeAgo(dateStr) {
+    //     // dateStr is "YYYY-MM-DD HH:MM:SS" server time (assume same timezone as viewer/server)
+    //     const then = new Date(dateStr.replace(' ', 'T'));
+    //     const diffSec = Math.max(0, Math.floor((Date.now() - then.getTime()) / 1000));
+    //     if (diffSec < 60) return diffSec + "s ago";
+    //     return Math.floor(diffSec / 60) + "m ago";
+    // }
+
+    // async function refreshBuses() {
+    //     try {
+    //         const res = await fetch(`${API_BASE}/get_locations.php`, { cache: "no-store" });
+    //         const data = await res.json();
+    //         const buses = (data && data.buses) ? data.buses : [];
+
+    //         document.getElementById('status-badge').classList.add('live');
+    //         document.getElementById('status-badge').textContent = 'Live';
+    //         document.getElementById('empty-msg').style.display = buses.length === 0 ? 'block' : 'none';
+
+    //         const seenIds = new Set();
+
+    //         buses.forEach(bus => {
+    //             const id = bus.driver_id;
+    //             seenIds.add(Number(id));
+    //             const lat = parseFloat(bus.latitude);
+    //             const lng = parseFloat(bus.longitude);
+    //             const label = bus.bus_name || ('Driver #' + id);
+    //             const popupHtml = `<div class="bus-popup"><b>${label}</b><br>Driver: ${bus.full_name || 'N/A'}<br>Updated: ${timeAgo(bus.recorded_at)}</div>`;
+
+    //             if (markers[id]) {
+    //                 markers[id].setLatLng([lat, lng]);
+    //                 markers[id].setPopupContent(popupHtml);
+    //             } else {
+    //                 markers[id] = L.marker([lat, lng], { icon: busIcon })
+    //                     .addTo(map)
+    //                     .bindPopup(popupHtml);
+    //             }
+    //         });
+
+    //         // Remove markers for buses that stopped tracking
+    //         Object.keys(markers).forEach(id => {
+    //             if (!seenIds.has(Number(id))) {
+    //                 map.removeLayer(markers[id]);
+    //                 delete markers[id];
+    //             }
+    //         });
+
+    //         // Auto-fit map to visible buses the first time we get data
+    //         if (!hasFittedOnce && buses.length > 0) {
+    //             const group = new L.featureGroup(Object.values(markers));
+    //             map.fitBounds(group.getBounds().pad(0.3));
+    //             hasFittedOnce = true;
+    //         }
+
+    //     } catch (err) {
+    //         document.getElementById('status-badge').classList.remove('live');
+    //         document.getElementById('status-badge').textContent = 'Connection error';
+    //         console.error("Failed to fetch bus locations:", err);
+    //     }
+    // }
+
+    // refreshBuses();
+    // setInterval(refreshBuses, REFRESH_MS);
+</script>
+
+</body>
+</html>

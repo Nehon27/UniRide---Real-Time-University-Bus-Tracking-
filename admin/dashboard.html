@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UniRide Admin — Dashboard</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="topbar">
+    <h1>🚌 UniRide Admin</h1>
+    <div class="right">
+        <span id="welcomeMsg"></span>
+        <button id="logoutBtn">Log Out</button>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Buses -->
+    <div class="panel">
+        <h2>Buses</h2>
+        <div class="form-row">
+            <input type="text" id="busNameInput" placeholder="Bus name (e.g. Bus 3)" />
+            <button id="addBusBtn">Add Bus</button>
+        </div>
+        <p id="busMsg" class="msg"></p>
+        <table>
+            <thead>
+                <tr><th>Bus Name</th><th>Assigned Driver</th><th>Added</th><th></th></tr>
+            </thead>
+            <tbody id="busTableBody">
+                <tr class="empty-row"><td colspan="4">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Drivers -->
+    <div class="panel">
+        <h2>Drivers</h2>
+        <div class="form-row">
+            <input type="text" id="driverFullName" placeholder="Full name" />
+            <input type="text" id="driverUsername" placeholder="Username" />
+            <input type="password" id="driverPassword" placeholder="Password" />
+            <select id="driverBusSelect">
+                <option value="">No bus assigned</option>
+            </select>
+            <button id="addDriverBtn">Add Driver</button>
+        </div>
+        <p id="driverMsg" class="msg"></p>
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Username</th><th>Bus</th><th>Status</th><th>Last Seen</th><th></th></tr>
+            </thead>
+            <tbody id="driverTableBody">
+                <tr class="empty-row"><td colspan="6">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script src="config.js"></script>
+<script>
+// ---- Auth guard ----
+const session = JSON.parse(sessionStorage.getItem('uniride_admin') || 'null');
+if (!session) {
+    window.location.href = 'index.html';
+}
+document.getElementById('welcomeMsg').textContent = session ? `Hi, ${session.username}` : '';
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem('uniride_admin');
+    window.location.href = 'index.html';
+});
+
+function showMsg(elId, text, isError) {
+    const el = document.getElementById(elId);
+    el.textContent = text;
+    el.className = 'msg ' + (isError ? 'error' : 'success');
+    setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
+// ---- Buses ----
+async function loadBuses() {
+    const res = await fetch(`${API_BASE}/list_buses.php`);
+    const data = await res.json();
+    const buses = data.buses || [];
+
+    const tbody = document.getElementById('busTableBody');
+    tbody.innerHTML = '';
+    if (buses.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No buses yet. Add one above.</td></tr>';
+    } else {
+        buses.forEach(bus => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeHtml(bus.bus_name)}</td>
+                <td>${bus.driver_name ? escapeHtml(bus.driver_name) : '<span style="color:#aaa">Unassigned</span>'}</td>
+                <td>${bus.created_at}</td>
+                <td><button class="link-btn" data-id="${bus.id}" data-action="delete-bus">Delete</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Refresh the bus dropdown used when adding a driver
+    const select = document.getElementById('driverBusSelect');
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">No bus assigned</option>';
+    buses.forEach(bus => {
+        const opt = document.createElement('option');
+        opt.value = bus.id;
+        opt.textContent = bus.bus_name;
+        select.appendChild(opt);
+    });
+    select.value = currentVal;
+}
+
+document.getElementById('addBusBtn').addEventListener('click', async () => {
+    const name = document.getElementById('busNameInput').value.trim();
+    if (!name) { showMsg('busMsg', 'Enter a bus name', true); return; }
+
+    const res = await fetch(`${API_BASE}/add_bus.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `bus_name=${encodeURIComponent(name)}`
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+        document.getElementById('busNameInput').value = '';
+        showMsg('busMsg', 'Bus added', false);
+        loadBuses();
+    } else {
+        showMsg('busMsg', data.message || 'Failed to add bus', true);
+    }
+});
+
+document.getElementById('busTableBody').addEventListener('click', async (e) => {
+    if (e.target.dataset.action === 'delete-bus') {
+        if (!confirm('Delete this bus? Drivers assigned to it will become unassigned.')) return;
+        await fetch(`${API_BASE}/delete_bus.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `bus_id=${e.target.dataset.id}`
+        });
+        loadBuses();
+        loadDrivers();
+    }
+});
+
+// ---- Drivers ----
+async function loadDrivers() {
+    const res = await fetch(`${API_BASE}/list_drivers.php`);
+    const data = await res.json();
+    const drivers = data.drivers || [];
+
+    const tbody = document.getElementById('driverTableBody');
+    tbody.innerHTML = '';
+    if (drivers.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No drivers yet. Add one above.</td></tr>';
+    } else {
+        drivers.forEach(d => {
+            const tr = document.createElement('tr');
+            const statusBadge = d.is_active == 1
+                ? '<span class="badge active">Tracking</span>'
+                : '<span class="badge inactive">Offline</span>';
+            tr.innerHTML = `
+                <td>${escapeHtml(d.full_name)}</td>
+                <td>${escapeHtml(d.username)}</td>
+                <td>${d.bus_name ? escapeHtml(d.bus_name) : '<span style="color:#aaa">None</span>'}</td>
+                <td>${statusBadge}</td>
+                <td>${d.last_seen || '—'}</td>
+                <td><button class="link-btn" data-id="${d.id}" data-action="delete-driver">Delete</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+}
+
+document.getElementById('addDriverBtn').addEventListener('click', async () => {
+    const full_name = document.getElementById('driverFullName').value.trim();
+    const username = document.getElementById('driverUsername').value.trim();
+    const password = document.getElementById('driverPassword').value;
+    const bus_id = document.getElementById('driverBusSelect').value;
+
+    if (!full_name || !username || !password) {
+        showMsg('driverMsg', 'Full name, username, and password are required', true);
+        return;
+    }
+
+    const res = await fetch(`${API_BASE}/add_driver.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `full_name=${encodeURIComponent(full_name)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&bus_id=${encodeURIComponent(bus_id)}`
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+        document.getElementById('driverFullName').value = '';
+        document.getElementById('driverUsername').value = '';
+        document.getElementById('driverPassword').value = '';
+        document.getElementById('driverBusSelect').value = '';
+        showMsg('driverMsg', 'Driver added', false);
+        loadDrivers();
+        loadBuses();
+    } else {
+        showMsg('driverMsg', data.message || 'Failed to add driver', true);
+    }
+});
+
+document.getElementById('driverTableBody').addEventListener('click', async (e) => {
+    if (e.target.dataset.action === 'delete-driver') {
+        if (!confirm('Delete this driver account?')) return;
+        await fetch(`${API_BASE}/delete_driver.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `driver_id=${e.target.dataset.id}`
+        });
+        loadDrivers();
+        loadBuses();
+    }
+});
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// Initial load + auto-refresh driver status every 10s
+loadBuses();
+loadDrivers();
+setInterval(loadDrivers, 10000);
+</script>
+
+</body>
+</html>

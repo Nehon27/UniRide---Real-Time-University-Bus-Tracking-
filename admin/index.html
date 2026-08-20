@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UniRide Admin — Login</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body class="login-body">
+
+<div class="login-card">
+    <h1>🚌 UniRide Admin</h1>
+    <p class="subtitle">Sign in to manage buses and drivers</p>
+
+    <form id="loginForm">
+        <label>Username</label>
+        <input type="text" id="username" required autocomplete="username" />
+
+        <label>Password</label>
+        <input type="password" id="password" required autocomplete="current-password" />
+
+        <button type="submit">Log In</button>
+        <p id="errorMsg" class="error-msg"></p>
+    </form>
+
+    <p class="hint">Default: <b>admin</b> / <b>admin123</b> (change after first login)</p>
+</div>
+
+<script src="config.js"></script>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const errorMsg = document.getElementById('errorMsg');
+    errorMsg.textContent = '';
+
+    try {
+        const res = await fetch(`${API_BASE}/admin_login.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            sessionStorage.setItem('uniride_admin', JSON.stringify(data));
+            window.location.href = 'dashboard.html';
+        } else {
+            errorMsg.textContent = data.message || 'Login failed';
+        }
+    } catch (err) {
+        errorMsg.textContent = 'Could not reach server. Check API_BASE in config.js';
+    }
+});
+</script>
+
+</body>
+</html>
